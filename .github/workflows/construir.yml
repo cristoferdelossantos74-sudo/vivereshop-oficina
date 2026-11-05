@@ -1,0 +1,76 @@
+name: Construir APK y publicar la oficina
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: construir
+  cancel-in-progress: true
+
+jobs:
+  construir:
+    runs-on: ubuntu-latest
+    env:
+      VITE_FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Construir la web
+        run: npm run build
+
+      - name: Preparar web para GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Crear proyecto Android
+        run: |
+          npx cap add android
+          npx --yes @capacitor/assets generate --android --iconBackgroundColor '#16a34a' --splashBackgroundColor '#f6faf7' || echo "Íconos por defecto"
+          npx cap sync android
+
+      - name: Compilar APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../VivereShop.apk
+
+      - name: Publicar APK para descargar desde el teléfono
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.${{ github.run_number }}
+          name: VivereShop Oficina v1.${{ github.run_number }}
+          body: "📱 Descarga **VivereShop.apk** en tu teléfono e instálalo."
+          files: VivereShop.apk
+          make_latest: true
+
+  publicar-web:
+    needs: construir
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
