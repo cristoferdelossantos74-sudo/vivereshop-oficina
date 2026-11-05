@@ -1,0 +1,40 @@
+rules_version = '2';
+// ================================================================
+//  REGLAS DE SEGURIDAD — Vivere HQ
+//  Cambia TU_CORREO@gmail.com por tu correo de CEO (en minúsculas)
+//  y pega todo esto en Firebase > Firestore > Reglas > Publicar.
+// ================================================================
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isMember() { return signedIn() && exists(/databases/$(db)/documents/members/$(request.auth.uid)); }
+    function isCEO() { return isMember() && get(/databases/$(db)/documents/members/$(request.auth.uid)).data.role == 'ceo'; }
+    function ceoEmail() { return 'TU_CORREO@gmail.com'; }
+
+    // Personas con acceso (CEO y socias)
+    match /members/{uid} {
+      allow read: if isMember();
+      // El CEO se registra solo la primera vez; las socias las crea el CEO
+      allow create: if isCEO()
+        || (signedIn() && request.auth.uid == uid
+            && request.auth.token.email.lower() == ceoEmail().lower()
+            && request.resource.data.role == 'ceo');
+      // Cada quien edita su nombre/color/conexión, pero nadie se sube el rol
+      allow update: if isCEO()
+        || (signedIn() && request.auth.uid == uid && request.resource.data.role == resource.data.role);
+      allow delete: if isCEO();
+    }
+
+    // Conexiones (backend, claves): todos leen, solo el CEO cambia
+    match /settings/{id} {
+      allow read: if isMember();
+      allow write: if isCEO();
+    }
+
+    // Todo lo demás de la oficina: agentes, áreas, tareas, grupos, billetera...
+    match /{col}/{id} {
+      allow read, write: if isMember() && !(col in ['members', 'settings']);
+    }
+  }
+}

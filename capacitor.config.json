@@ -1,0 +1,9 @@
+{
+  "appId": "com.vivereshop.oficina",
+  "appName": "VivereShop",
+  "webDir": "dist",
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "LocalNotifications": { "smallIcon": "ic_stat_icon_config_sample", "iconColor": "#16a34a" }
+  }
+}
