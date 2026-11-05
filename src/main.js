@@ -1,6 +1,6 @@
 import './style.css';
 import { createStore, DEMO } from './store.js';
-import { COMPANY } from './config.js';
+import { COMPANY, CONFIG_ERROR } from './config.js';
 import { createOffice } from './office3d.js';
 import { seedData, stateOf, workloadOf, todayKey, STATE_INFO, ROLES, moodOf } from './agents.js';
 import * as api from './api.js';
@@ -72,7 +72,9 @@ async function ensureMember(user) {
 let teardown = [];
 async function start() {
   loading('Cargando...');
-  store = await createStore();
+  if (CONFIG_ERROR) return showFatal(CONFIG_ERROR);
+  try { store = await createStore(); }
+  catch (e) { console.error(e); return showFatal('No pude conectar con Firebase: ' + (e.message || e) + '. Revisa el secreto FIREBASE_CONFIG y vuelve a correr "Run workflow".'); }
   store.onAuth(async (user) => {
     teardown.forEach((f) => { try { f(); } catch {} }); teardown = [];
     closeSheet(); document.querySelectorAll('.monitor,.bubble,.banner').forEach((x) => x.remove());
@@ -319,5 +321,11 @@ function openOffice(user, meDoc) {
 if ('serviceWorker' in navigator && !isNative() && location.protocol === 'https:' && !DEMO) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
+
+function showFatal(msg) {
+  app.innerHTML = `<div class="login"><div class="login-card"><div class="brand"><div class="brand-logo">⚠️</div><div><h1>${esc(COMPANY)}</h1><small>No se pudo abrir la oficina</small></div></div><p class="lead">${esc(msg)}</p><button class="btn block" onclick="location.reload()">🔄 Reintentar</button></div></div>`;
+}
+window.addEventListener('error', (e) => { if (!app.children.length) showFatal('Error al cargar: ' + (e.message || 'desconocido')); });
+window.addEventListener('unhandledrejection', (e) => { if (!app.children.length) showFatal('Error al cargar: ' + (e.reason?.message || e.reason || 'desconocido')); });
 
 start();
